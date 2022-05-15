@@ -62,6 +62,8 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
   const tree = useFloatingTree<RT>();
   const handleClose = useEvent(handleClose_unstable);
 
+  const handleCloseIsNullish = handleClose_unstable == null;
+
   const pointerTypeRef = React.useRef<string>();
   const timeoutRef = React.useRef<any>();
   const handlerRef = React.useRef<(event: PointerEvent) => void>();
@@ -96,7 +98,7 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
   }, [enabled, events, refs.floating]);
 
   React.useEffect(() => {
-    if (!enabled || !handleClose_unstable) {
+    if (!enabled || handleCloseIsNullish) {
       return;
     }
 
@@ -111,7 +113,7 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
     return () => {
       html.removeEventListener('mouseleave', onLeave);
     };
-  }, [refs.floating, onOpenChange, enabled, handleClose_unstable, dataRef]);
+  }, [refs.floating, onOpenChange, enabled, handleCloseIsNullish, dataRef]);
 
   const closeWithDelay = React.useCallback(
     (runElseBranch = true) => {
