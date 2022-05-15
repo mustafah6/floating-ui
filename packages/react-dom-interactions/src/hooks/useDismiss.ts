@@ -7,7 +7,6 @@ import {getChildren} from '../utils/getChildren';
 import {getDocument} from '../utils/getDocument';
 import {isElement, isHTMLElement} from '../utils/is';
 import {isEventTargetWithin} from '../utils/isEventTargetWithin';
-import {useLatestRef} from '../utils/useLatestRef';
 
 export interface Props {
   enabled?: boolean;
@@ -34,7 +33,6 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
   }: Props = {}
 ): ElementProps => {
   const tree = useFloatingTree();
-  const onOpenChangeRef = useLatestRef(onOpenChange);
 
   const isFocusInsideFloating = React.useCallback(() => {
     return refs.floating.current?.contains(
@@ -60,7 +58,7 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
         }
 
         events.emit('dismiss');
-        onOpenChangeRef.current(false);
+        onOpenChange(false);
         focusReference();
       }
     }
@@ -86,12 +84,12 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
       }
 
       events.emit('dismiss');
-      onOpenChangeRef.current(false);
+      onOpenChange(false);
       focusReference();
     }
 
     function onScroll() {
-      onOpenChangeRef.current(false);
+      onOpenChange(false);
     }
 
     const doc = getDocument(refs.floating.current);
@@ -135,7 +133,7 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
     tree,
     nodeId,
     open,
-    onOpenChangeRef,
+    onOpenChange,
     focusReference,
     ancestorScroll,
     enabled,

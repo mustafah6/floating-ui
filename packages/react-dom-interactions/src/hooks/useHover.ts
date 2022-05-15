@@ -9,7 +9,7 @@ import type {
 } from '../types';
 import {getDocument} from '../utils/getDocument';
 import {isElement} from '../utils/is';
-import {useLatestRef} from '../utils/useLatestRef';
+import {useEvent} from '../utils/useEvent';
 
 export function getDelay(
   value: Props['delay'],
@@ -52,7 +52,7 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
   {
     enabled = true,
     delay = 0,
-    handleClose = null,
+    handleClose: handleClose_unstable,
     mouseOnly = false,
     restMs = 0,
   }: Props<RT> = {}
@@ -60,8 +60,7 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
   const {open, onOpenChange, dataRef, events, refs} = context;
 
   const tree = useFloatingTree<RT>();
-  const onOpenChangeRef = useLatestRef(onOpenChange);
-  const handleCloseRef = useLatestRef(handleClose);
+  const handleClose = useEvent(handleClose_unstable);
 
   const pointerTypeRef = React.useRef<string>();
   const timeoutRef = React.useRef<any>();
@@ -97,13 +96,13 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
   }, [enabled, events, refs.floating]);
 
   React.useEffect(() => {
-    if (!enabled || !handleCloseRef.current) {
+    if (!enabled || !handleClose_unstable) {
       return;
     }
 
     function onLeave() {
       if (dataRef.current.openEvent?.type.includes('mouse')) {
-        onOpenChangeRef.current(false);
+        onOpenChange(false);
       }
     }
 
@@ -112,22 +111,19 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
     return () => {
       html.removeEventListener('mouseleave', onLeave);
     };
-  }, [refs.floating, onOpenChangeRef, enabled, handleCloseRef, dataRef]);
+  }, [refs.floating, onOpenChange, enabled, handleClose_unstable, dataRef]);
 
   const closeWithDelay = React.useCallback(
     (runElseBranch = true) => {
       const closeDelay = getDelay(delay, 'close', pointerTypeRef.current);
       if (closeDelay && !handlerRef.current) {
         clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(
-          () => onOpenChangeRef.current(false),
-          closeDelay
-        );
+        timeoutRef.current = setTimeout(() => onOpenChange(false), closeDelay);
       } else if (runElseBranch) {
-        onOpenChangeRef.current(false);
+        onOpenChange(false);
       }
     },
-    [delay, onOpenChangeRef]
+    [delay, onOpenChange]
   );
 
   const cleanupPointerMoveHandler = React.useCallback(() => {
@@ -172,10 +168,10 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
 
       if (openDelay) {
         timeoutRef.current = setTimeout(() => {
-          onOpenChangeRef.current(true);
+          onOpenChange(true);
         }, openDelay);
       } else {
-        onOpenChangeRef.current(true);
+        onOpenChange(true);
       }
     }
 
@@ -190,13 +186,13 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
       const doc = getDocument(refs.floating.current);
       clearTimeout(restTimeoutRef.current);
 
-      if (handleCloseRef.current) {
+      if (handleClose) {
         clearTimeout(timeoutRef.current);
 
         handlerRef.current &&
           doc.removeEventListener('pointermove', handlerRef.current);
 
-        handlerRef.current = handleCloseRef.current({
+        handlerRef.current = handleClose({
           ...context,
           tree,
           x: event.clientX,
@@ -218,7 +214,7 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
     // did not move.
     // https://github.com/floating-ui/floating-ui/discussions/1692
     function onPointerLeave(event: PointerEvent) {
-      handleCloseRef.current?.({
+      handleClose({
         ...context,
         tree,
         x: event.clientX,
@@ -253,10 +249,10 @@ export const useHover = <RT extends ReferenceType = ReferenceType>(
     closeWithDelay,
     context,
     delay,
-    handleCloseRef,
+    handleClose,
     dataRef,
     mouseOnly,
-    onOpenChangeRef,
+    onOpenChange,
     open,
     tree,
     restMs,

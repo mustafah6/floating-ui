@@ -10,6 +10,7 @@ import type {
 } from './types';
 import {createPubSub} from './createPubSub';
 import {useFloatingTree} from './FloatingTree';
+import {useEvent} from './utils/useEvent';
 
 export function useFloating<RT extends ReferenceType = ReferenceType>({
   open = false,
@@ -22,6 +23,7 @@ export function useFloating<RT extends ReferenceType = ReferenceType>({
 }: Partial<UseFloatingProps> = {}): UseFloatingReturn<RT> & {
   context: FloatingContext<RT>;
 } {
+  const onOpenChangeStable = useEvent(onOpenChange);
   const tree = useFloatingTree<RT>();
   const dataRef = React.useRef<ContextData>({});
   const events = React.useState(() => createPubSub())[0];
@@ -39,9 +41,9 @@ export function useFloating<RT extends ReferenceType = ReferenceType>({
       nodeId,
       events,
       open,
-      onOpenChange,
+      onOpenChange: onOpenChangeStable,
     }),
-    [floating, dataRef, nodeId, events, open, onOpenChange]
+    [floating, dataRef, nodeId, events, open, onOpenChangeStable]
   );
 
   useLayoutEffect(() => {

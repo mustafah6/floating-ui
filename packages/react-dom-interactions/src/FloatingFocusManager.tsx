@@ -68,7 +68,6 @@ export function FloatingFocusManager<RT extends ReferenceType = ReferenceType>({
   modal = true,
 }: Props<RT>): JSX.Element {
   const orderRef = useLatestRef(order);
-  const onOpenChangeRef = useLatestRef(onOpenChange);
   const tree = useFloatingTree();
 
   const getTabbableElements = React.useCallback(() => {
@@ -186,7 +185,7 @@ export function FloatingFocusManager<RT extends ReferenceType = ReferenceType>({
           )
         )
       ) {
-        onOpenChangeRef.current(false);
+        onOpenChange(false);
       }
     }
 
@@ -206,7 +205,7 @@ export function FloatingFocusManager<RT extends ReferenceType = ReferenceType>({
     nodeId,
     tree,
     modal,
-    onOpenChangeRef,
+    onOpenChange,
     getTabbableElements,
     initialFocus,
     refs.floating,
