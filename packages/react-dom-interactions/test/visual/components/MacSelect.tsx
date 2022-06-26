@@ -65,9 +65,9 @@ export function Main() {
     useDismiss(context),
     useRole(context, {role: 'listbox'}),
     useInnerOffset(context, {
+      enabled: !fallback,
       onChange: setOffset,
       overflowRef,
-      fallback,
     }),
     useListNavigation(context, {
       listRef,
