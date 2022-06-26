@@ -10,13 +10,14 @@ import type {
 import {detectOverflow, offset} from '.';
 import {flushSync} from 'react-dom';
 import {getUserAgent} from './utils/getPlatform';
+import {useLatestRef} from './utils/useLatestRef';
 
 export const inner = (
   options: {
     listRef: React.MutableRefObject<Array<HTMLElement | null>>;
     index: number;
     onFallbackChange?: null | ((fallback: boolean) => void);
-    expandOffset?: number;
+    offset?: number;
     overflowRef?: React.MutableRefObject<SideObject | null>;
     minHeight?: number;
     referenceOverflowThreshold?: number;
@@ -28,10 +29,10 @@ export const inner = (
     const {
       listRef,
       overflowRef,
-      expandOffset = 0,
+      onFallbackChange,
+      offset: innerOffset = 0,
       index = 0,
       minHeight = 100,
-      onFallbackChange,
       referenceOverflowThreshold = 0,
       ...detectOverflowOptions
     } = options;
@@ -52,13 +53,27 @@ export const inner = (
 
     const item = listRef.current[index];
 
+    if (__DEV__) {
+      if (!middlewareArguments.placement.startsWith('bottom')) {
+        console.warn(
+          [
+            'Floating UI: `placement` side must be "bottom" when using the',
+            '`inner` middleware.',
+          ].join(' ')
+        );
+      }
+    }
+
     if (!item) {
-      console.warn(
-        [
-          `Floating UI: Item with index ${index} does not exist and cannot`,
-          `be aligned.`,
-        ].join(' ')
-      );
+      if (__DEV__) {
+        console.warn(
+          [
+            `Floating UI: Item with index ${index} does not exist and cannot`,
+            `be aligned.`,
+          ].join(' ')
+        );
+      }
+
       return {};
     }
 
@@ -68,7 +83,7 @@ export const inner = (
         -item.offsetTop -
           rects.reference.height / 2 -
           item.offsetHeight / 2 -
-          expandOffset
+          innerOffset
       ).fn(middlewareArguments)),
     };
 
@@ -125,18 +140,19 @@ export const inner = (
   },
 });
 
-export const useExpandOffset = (
+export const useInnerOffset = (
   {open, refs}: FloatingContext,
   {
+    enabled = true,
     overflowRef,
-    fallback,
     onChange,
   }: {
+    enabled?: boolean;
     overflowRef: React.MutableRefObject<SideObject | null>;
-    fallback: boolean;
-    onChange: React.Dispatch<React.SetStateAction<number>>;
+    onChange: (offset: number | ((offset: number) => number)) => void;
   }
 ): ElementProps => {
+  const onChangeRef = useLatestRef(onChange);
   const controlledScrollingRef = React.useRef(false);
   const prevScrollTopRef = React.useRef<number | null>(null);
 
@@ -147,9 +163,14 @@ export const useExpandOffset = (
     open,
     refs,
     overflowRef,
+    enabled,
   });
 
   React.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     function onWheel(e: WheelEvent) {
       if (
         e.ctrlKey ||
@@ -167,7 +188,7 @@ export const useExpandOffset = (
 
       if ((!isAtTop && dY > 0) || (!isAtBottom && dY < 0)) {
         e.preventDefault();
-        flushSync(() => onChange((d) => d + dY));
+        flushSync(() => onChangeRef.current((d) => d + dY));
       } else if (/firefox/i.test(getUserAgent())) {
         // Needed to propagate scrolling during momentum scrolling phase once
         // it gets limited by the boundary. UX improvement, not critical.
@@ -177,7 +198,7 @@ export const useExpandOffset = (
 
     const el = refs.floating.current;
 
-    if (open && el && !fallback) {
+    if (open && el) {
       el.addEventListener('wheel', onWheel);
 
       // Wait for the position to be ready.
@@ -190,7 +211,11 @@ export const useExpandOffset = (
         el.removeEventListener('wheel', onWheel);
       };
     }
-  }, [fallback, open, refs, overflowRef, onChange]);
+  }, [enabled, open, refs, overflowRef, onChangeRef]);
+
+  if (!enabled) {
+    return {};
+  }
 
   return {
     floating: {
@@ -234,13 +259,21 @@ function useTouchMomentumExpandOffset(
     open,
     refs,
     overflowRef,
+    enabled,
   }: {
     open: boolean;
     refs: UseFloatingReturn['refs'];
     overflowRef: React.MutableRefObject<SideObject | null>;
+    enabled: boolean;
   }
 ) {
+  const onChangeRef = useLatestRef(onChange);
+
   React.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const timeConstant = 325;
     let offset = 0;
     let velocity = 0;
@@ -284,7 +317,7 @@ function useTouchMomentumExpandOffset(
         }
 
         offset = y;
-        flushSync(() => onChange(offset));
+        flushSync(() => onChangeRef.current(offset));
       }
     }
 
@@ -307,13 +340,13 @@ function useTouchMomentumExpandOffset(
 
         if (delta > 0 && overflowRef.current.top < -0.5) {
           offset -= overflowRef.current.top;
-          flushSync(() => onChange(offset));
+          flushSync(() => onChangeRef.current(offset));
           return;
         }
 
         if (delta < 0 && overflowRef.current.bottom < -0.5) {
           offset += overflowRef.current.bottom;
-          flushSync(() => onChange(offset));
+          flushSync(() => onChangeRef.current(offset));
           return;
         }
 
@@ -383,5 +416,5 @@ function useTouchMomentumExpandOffset(
         el.removeEventListener('touchend', release);
       };
     }
-  }, [open, refs, overflowRef, onChange]);
+  }, [enabled, open, refs, overflowRef, onChangeRef]);
 }

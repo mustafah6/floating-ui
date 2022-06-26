@@ -6,7 +6,7 @@ import {
   SideObject,
   useInteractions,
   inner,
-  useExpandOffset,
+  useInnerOffset,
   useClick,
   useListNavigation,
   useDismiss,
@@ -28,8 +28,7 @@ export function Main() {
   const [selectedIndex, setSelectedIndex] = useState(49);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [fallback, setFallback] = useState(false);
-  const [expandOffset, setExpandOffset] = useState(0);
-  const [allowFallbackChange, setAllowFallbackChange] = useState(false);
+  const [offset, setOffset] = useState(0);
   const [controlledScrolling, setControlledScrolling] = useState(false);
 
   const {x, y, reference, floating, strategy, context} = useFloating({
@@ -54,8 +53,8 @@ export function Main() {
             listRef,
             overflowRef,
             index: selectedIndex,
-            expandOffset,
-            onFallbackChange: allowFallbackChange ? setFallback : null,
+            offset,
+            onFallbackChange: setFallback,
             padding: 10,
           }),
         ],
@@ -65,8 +64,8 @@ export function Main() {
     useClick(context, {pointerDown: true}),
     useDismiss(context),
     useRole(context, {role: 'listbox'}),
-    useExpandOffset(context, {
-      onChange: setExpandOffset,
+    useInnerOffset(context, {
+      onChange: setOffset,
       overflowRef,
       fallback,
     }),
@@ -74,6 +73,7 @@ export function Main() {
       listRef,
       activeIndex,
       selectedIndex,
+      loop: true,
       onNavigate: setActiveIndex,
     }),
     useTypeahead(context, {
@@ -97,7 +97,6 @@ export function Main() {
   // Resetting the state when the floating element is closed.
   useLayoutEffect(() => {
     if (open) {
-      setAllowFallbackChange(false);
       selectTimeoutRef.current = setTimeout(() => {
         allowSelectRef.current = true;
       }, 350);
@@ -106,9 +105,8 @@ export function Main() {
       };
     } else {
       allowSelectRef.current = false;
-      setExpandOffset(0);
+      setOffset(0);
       setFallback(false);
-      setAllowFallbackChange(true);
     }
   }, [open]);
 
