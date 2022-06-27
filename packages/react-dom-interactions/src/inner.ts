@@ -1,4 +1,5 @@
 import * as React from 'react';
+import {detectOverflow, offset} from '@floating-ui/react-dom';
 import type {
   UseFloatingReturn,
   SideObject,
@@ -7,7 +8,6 @@ import type {
   FloatingContext,
   ElementProps,
 } from './types';
-import {detectOverflow, offset} from '.';
 import {flushSync} from 'react-dom';
 import {getUserAgent} from './utils/getPlatform';
 import {useLatestRef} from './utils/useLatestRef';
@@ -159,11 +159,11 @@ export const useInnerOffset = (
   // Touch devices don't have `wheel` which has a momentum-based deltaY value,
   // so we need to add custom momentum scrolling to `touchmove`. This allows
   // the maxHeight expansion to have inertial scrolling.
-  useTouchMomentumExpandOffset(onChange, {
+  useInertialTouchMoveOffset(onChange, {
+    enabled,
     open,
     refs,
     overflowRef,
-    enabled,
   });
 
   React.useEffect(() => {
@@ -253,7 +253,7 @@ export const useInnerOffset = (
 };
 
 // Adapted from https://github.com/ariya/kinetic/blob/master/2/scroll.js
-function useTouchMomentumExpandOffset(
+function useInertialTouchMoveOffset(
   onChange: React.Dispatch<React.SetStateAction<number>>,
   {
     open,
