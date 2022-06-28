@@ -91,10 +91,7 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
 
     const doc = getDocument(refs.floating.current);
     escapeKey && doc.addEventListener('keydown', onKeyDown);
-    // Use `mousedown` instead of `pointerdown` as it acts more like a click
-    // on touch devices than a `touchstart` (which can result in accidental
-    // dismissals too easily.)
-    outsidePointerDown && doc.addEventListener('mousedown', onPointerDown);
+    outsidePointerDown && doc.addEventListener('pointerdown', onPointerDown);
 
     const ancestors = (
       ancestorScroll
@@ -118,7 +115,8 @@ export const useDismiss = <RT extends ReferenceType = ReferenceType>(
 
     return () => {
       escapeKey && doc.removeEventListener('keydown', onKeyDown);
-      outsidePointerDown && doc.removeEventListener('mousedown', onPointerDown);
+      outsidePointerDown &&
+        doc.removeEventListener('pointerdown', onPointerDown);
       ancestors.forEach((ancestor) =>
         ancestor.removeEventListener('scroll', onScroll)
       );

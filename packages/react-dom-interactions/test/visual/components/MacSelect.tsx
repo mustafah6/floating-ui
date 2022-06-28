@@ -14,6 +14,7 @@ import {
   useTypeahead,
   FloatingFocusManager,
   FloatingOverlay,
+  offset,
 } from '@floating-ui/react-dom-interactions';
 import {useLayoutEffect, useRef, useState} from 'react';
 
@@ -22,22 +23,23 @@ export function Main() {
   const listContentRef = useRef<Array<string | null>>([]);
   const overflowRef = useRef<null | SideObject>(null);
   const allowSelectRef = useRef(false);
+  const allowMouseUpRef = useRef(true);
   const selectTimeoutRef = useRef<any>();
 
   const [open, setOpen] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(49);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [fallback, setFallback] = useState(false);
-  const [offset, setOffset] = useState(0);
+  const [innerOffset, setInnerOffset] = useState(0);
   const [controlledScrolling, setControlledScrolling] = useState(false);
 
   const {x, y, reference, floating, strategy, context} = useFloating({
     open,
     onOpenChange: setOpen,
     whileElementsMounted: autoUpdate,
-    strategy: 'fixed',
     middleware: fallback
       ? [
+          offset(10),
           flip({padding: 10}),
           size({
             apply({elements, availableHeight}) {
@@ -53,7 +55,7 @@ export function Main() {
             listRef,
             overflowRef,
             index: selectedIndex,
-            offset,
+            offset: innerOffset,
             onFallbackChange: setFallback,
             padding: 10,
           }),
@@ -66,7 +68,7 @@ export function Main() {
     useRole(context, {role: 'listbox'}),
     useInnerOffset(context, {
       enabled: !fallback,
-      onChange: setOffset,
+      onChange: setInnerOffset,
       overflowRef,
     }),
     useListNavigation(context, {
@@ -105,7 +107,8 @@ export function Main() {
       };
     } else {
       allowSelectRef.current = false;
-      setOffset(0);
+      allowMouseUpRef.current = true;
+      setInnerOffset(0);
       setFallback(false);
     }
   }, [open]);
@@ -116,9 +119,13 @@ export function Main() {
       <p>
         Anchors to an element inside the floating element. Once the user has
         scrolled the floating element, it will no longer anchor to the item
-        inside of it.
+        inside of it. Anchors to an element inside the floating element. Once
+        the user has scrolled the floating element, it will no longer anchor to
+        the item inside of it. Anchors to an element inside the floating
+        element. Once the user has scrolled the floating element, it will no
+        longer anchor to the item inside of it.
       </p>
-      <div className="container">
+      <div className="container" style={{width: 350}}>
         <div className="scroll" style={{position: 'relative'}}>
           <button
             ref={reference}
@@ -128,7 +135,7 @@ export function Main() {
             List item {selectedIndex + 1}
           </button>
           {open && (
-            <FloatingOverlay lockScroll>
+            <FloatingOverlay>
               <FloatingFocusManager context={context}>
                 <div
                   ref={floating}
@@ -143,7 +150,8 @@ export function Main() {
                     background: 'rgba(0, 0, 0, 0.6)',
                     backdropFilter: 'blur(4px)',
                     borderRadius: 4,
-                    fontSize: 14,
+                    fontSize: 15,
+                    overscrollBehavior: 'contain',
                   }}
                   {...getFloatingProps({
                     onKeyDown() {
@@ -194,6 +202,7 @@ export function Main() {
                             },
                             onTouchStart() {
                               allowSelectRef.current = true;
+                              allowMouseUpRef.current = false;
                             },
                             onClick() {
                               if (allowSelectRef.current) {
@@ -202,6 +211,10 @@ export function Main() {
                               }
                             },
                             onMouseUp() {
+                              if (!allowMouseUpRef.current) {
+                                return;
+                              }
+
                               if (
                                 allowSelectRef.current ||
                                 selectedIndex !== i

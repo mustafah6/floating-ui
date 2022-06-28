@@ -1,7 +1,6 @@
 import * as React from 'react';
 import {detectOverflow, offset} from '@floating-ui/react-dom';
 import type {
-  UseFloatingReturn,
   SideObject,
   DetectOverflowOptions,
   Middleware,
@@ -19,7 +18,7 @@ export const inner = (
     onFallbackChange?: null | ((fallback: boolean) => void);
     offset?: number;
     overflowRef?: React.MutableRefObject<SideObject | null>;
-    minHeight?: number;
+    minItemsVisible?: number;
     referenceOverflowThreshold?: number;
   } & Partial<DetectOverflowOptions>
 ): Middleware => ({
@@ -32,7 +31,7 @@ export const inner = (
       onFallbackChange,
       offset: innerOffset = 0,
       index = 0,
-      minHeight = 100,
+      minItemsVisible = 4,
       referenceOverflowThreshold = 0,
       ...detectOverflowOptions
     } = options;
@@ -107,7 +106,10 @@ export const inner = (
     // There is not enough space, fallback to standard anchored positioning
     if (onFallbackChange) {
       if (
-        floating.offsetHeight < minHeight ||
+        floating.offsetHeight <
+          item.offsetHeight *
+            Math.min(minItemsVisible, listRef.current.length) -
+            1 ||
         refOverflow.top >= -referenceOverflowThreshold ||
         refOverflow.bottom >= -referenceOverflowThreshold
       ) {
@@ -155,16 +157,8 @@ export const useInnerOffset = (
   const onChangeRef = useLatestRef(onChange);
   const controlledScrollingRef = React.useRef(false);
   const prevScrollTopRef = React.useRef<number | null>(null);
-
-  // Touch devices don't have `wheel` which has a momentum-based deltaY value,
-  // so we need to add custom momentum scrolling to `touchmove`. This allows
-  // the maxHeight expansion to have inertial scrolling.
-  useInertialTouchMoveOffset(onChange, {
-    enabled,
-    open,
-    refs,
-    overflowRef,
-  });
+  const equalHeightRef = React.useRef(false);
+  const initialOverflowRef = React.useRef<SideObject | null>(null);
 
   React.useEffect(() => {
     if (!enabled) {
@@ -172,23 +166,41 @@ export const useInnerOffset = (
     }
 
     function onWheel(e: WheelEvent) {
-      if (
-        e.ctrlKey ||
-        !el ||
-        el.scrollHeight <= el.offsetHeight ||
-        overflowRef.current == null
-      ) {
+      if (e.ctrlKey || !el || overflowRef.current == null) {
         return;
       }
 
       const dY = e.deltaY;
-
       const isAtTop = overflowRef.current.top >= -0.5;
       const isAtBottom = overflowRef.current.bottom >= -0.5;
+      const remainingScroll = el.scrollHeight - el.clientHeight;
+      const sign = dY < 0 ? -1 : 1;
+      const method = dY < 0 ? 'max' : 'min';
+
+      // Due to rounding errors, a scrollbar may still appear in certain cases.
+      // This ensures it is not scrollable at the maximum.
+      if (
+        el.scrollHeight === el.clientHeight &&
+        !equalHeightRef.current &&
+        initialOverflowRef.current &&
+        (initialOverflowRef.current.bottom >= -0.5 ||
+          initialOverflowRef.current.top >= -0.5)
+      ) {
+        onChangeRef.current((d) => d + sign);
+        equalHeightRef.current = true;
+      }
+
+      if (el.scrollHeight <= el.clientHeight) {
+        return;
+      }
 
       if ((!isAtTop && dY > 0) || (!isAtBottom && dY < 0)) {
         e.preventDefault();
-        flushSync(() => onChangeRef.current((d) => d + dY));
+        flushSync(() => {
+          onChangeRef.current(
+            (d) => d + Math[method](dY, remainingScroll * sign)
+          );
+        });
       } else if (/firefox/i.test(getUserAgent())) {
         // Needed to propagate scrolling during momentum scrolling phase once
         // it gets limited by the boundary. UX improvement, not critical.
@@ -204,10 +216,16 @@ export const useInnerOffset = (
       // Wait for the position to be ready.
       requestAnimationFrame(() => {
         prevScrollTopRef.current = el.scrollTop;
+
+        if (overflowRef.current != null) {
+          initialOverflowRef.current = {...overflowRef.current};
+        }
       });
 
       return () => {
         prevScrollTopRef.current = null;
+        initialOverflowRef.current = null;
+        equalHeightRef.current = false;
         el.removeEventListener('wheel', onWheel);
       };
     }
@@ -251,170 +269,3 @@ export const useInnerOffset = (
     },
   };
 };
-
-// Adapted from https://github.com/ariya/kinetic/blob/master/2/scroll.js
-function useInertialTouchMoveOffset(
-  onChange: React.Dispatch<React.SetStateAction<number>>,
-  {
-    open,
-    refs,
-    overflowRef,
-    enabled,
-  }: {
-    open: boolean;
-    refs: UseFloatingReturn['refs'];
-    overflowRef: React.MutableRefObject<SideObject | null>;
-    enabled: boolean;
-  }
-) {
-  const onChangeRef = useLatestRef(onChange);
-
-  React.useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
-    const timeConstant = 325;
-    let offset = 0;
-    let velocity = 0;
-    let amplitude = 0;
-    let frame = 0;
-    let ticker = 0;
-    let target = 0;
-    let autoScroll = 0;
-    let timestamp = 0;
-    let reference = 0;
-    let pressed = false;
-    let cancel = false;
-
-    function isExpandable() {
-      if (overflowRef.current) {
-        return (
-          overflowRef.current.top !== 0 || overflowRef.current.bottom !== 0
-        );
-      }
-
-      return false;
-    }
-
-    function yPos(e: any) {
-      // touch event
-      if (e.targetTouches && e.targetTouches.length >= 1) {
-        return e.targetTouches[0].clientY;
-      }
-
-      // mouse event
-      return e.clientY;
-    }
-
-    function scroll(y: number) {
-      if (overflowRef.current && el) {
-        if (
-          (overflowRef.current.top < -0.5 && y < offset) ||
-          (overflowRef.current.bottom < -0.5 && y > offset)
-        ) {
-          return;
-        }
-
-        offset = y;
-        flushSync(() => onChangeRef.current(offset));
-      }
-    }
-
-    function track() {
-      const now = Date.now();
-      const elapsed = now - timestamp;
-      const delta = offset - frame;
-      const v = (1000 * delta) / (1 + elapsed);
-
-      timestamp = now;
-      frame = offset;
-      velocity = 0.8 * v + 0.2 * velocity;
-      ticker = requestAnimationFrame(track);
-    }
-
-    function autoScrollFrame() {
-      if (amplitude && !cancel && overflowRef.current) {
-        const elapsed = Date.now() - timestamp;
-        const delta = -amplitude * Math.exp(-elapsed / timeConstant);
-
-        if (delta > 0 && overflowRef.current.top < -0.5) {
-          offset -= overflowRef.current.top;
-          flushSync(() => onChangeRef.current(offset));
-          return;
-        }
-
-        if (delta < 0 && overflowRef.current.bottom < -0.5) {
-          offset += overflowRef.current.bottom;
-          flushSync(() => onChangeRef.current(offset));
-          return;
-        }
-
-        if (delta > 0.5 || delta < -0.5) {
-          scroll(target + delta);
-          autoScroll = requestAnimationFrame(autoScrollFrame);
-        } else {
-          scroll(target);
-        }
-      }
-    }
-
-    function tap(e: TouchEvent) {
-      pressed = true;
-      reference = yPos(e);
-      velocity = amplitude = 0;
-      timestamp = Date.now();
-
-      cancelAnimationFrame(ticker);
-      ticker = requestAnimationFrame(track);
-
-      if (!isExpandable()) {
-        cancel = true;
-      }
-    }
-
-    function drag(e: TouchEvent) {
-      if (pressed && !cancel) {
-        const y = yPos(e);
-        const delta = reference - y;
-        if (delta > 2 || delta < -2) {
-          reference = y;
-          scroll(offset + delta);
-        }
-      }
-
-      if (isExpandable() && e.cancelable && !cancel) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    }
-
-    function release() {
-      pressed = false;
-      cancelAnimationFrame(ticker);
-
-      if (velocity > 5 || velocity < -5) {
-        amplitude = 0.8 * velocity;
-        target = Math.round(offset + amplitude);
-        timestamp = Date.now();
-        autoScroll = requestAnimationFrame(autoScrollFrame);
-      }
-    }
-
-    const el = refs.floating.current;
-
-    if (el && open) {
-      el.addEventListener('touchstart', tap, {passive: false});
-      el.addEventListener('touchmove', drag, {passive: false});
-      el.addEventListener('touchend', release);
-
-      return () => {
-        cancelAnimationFrame(ticker);
-        cancelAnimationFrame(autoScroll);
-        el.removeEventListener('touchstart', tap);
-        el.removeEventListener('touchmove', drag);
-        el.removeEventListener('touchend', release);
-      };
-    }
-  }, [enabled, open, refs, overflowRef, onChangeRef]);
-}

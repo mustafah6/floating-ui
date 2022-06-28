@@ -553,7 +553,7 @@ export const useListNavigation = <RT extends ReferenceType = ReferenceType>(
             }
           }
         },
-        onMouseLeave() {
+        onPointerLeave() {
           if (!blockPointerLeaveRef.current) {
             indexRef.current = -1;
             focusItem(listRef, indexRef);
